@@ -4,6 +4,7 @@ use Mojo::Base 'Mojolicious::Command';
 use Getopt::Long 2.25 qw(:config posix_default no_ignore_case);
 use IO::Handle;
 use Carp;
+use Mojo::JSON qw(decode_json);
 
 =head1 NAME
 
@@ -61,28 +62,13 @@ sub run {
 
     # read settings
     open my $sh, '<', 'etc/settings' or die $!; # TODO run from everywhere
-    my %settings;
+    my $json_str;
     while (<$sh>){
         chomp;
-        next if /^#/;
-        next unless /=/;
-        my ($k, $v) = split /\s*=\s*/;
-        $k =~ s/^\s*//;
-        $v =~ s/\s*$//;
-        $debug->("k: '$k', v: '$v'");
-        $settings{$k} = $v;
+        $json_str .= $_;
     }
-    unless (exists $settings{folder}
-                and
-            exists $settings{exclude_file}
-                and
-            -f $settings{exclude_file}){ # TODO run from everywhere
-        say "mandatory settings:";
-        say "  folder";
-        say "  exclude_file (must exist)";
-        exit 1;
-    }
-
+    my $settings = decode_json $json_str;
+    # TODO Data::Processor
 
     # get accounts
     my @accounts = grep /\@/, split /\n/, zmProv->new(noaction=>$opt{noaction},verbose=>$opt{verbose},debug=>$opt{debug})->cmd('gaa') ;
@@ -105,22 +91,22 @@ sub run {
         for my $line (split /\n/, $box->cmd("getAllFolders")){
             # the line for the folder looks like
             # 4  mess           1           1  /Junk
-            next unless $line =~ m|mess.+/$settings{folder}\s*$|;
+            next unless $line =~ m|mess.+/$settings->{folder}\s*$|;
             $folder_found = 1;
         }
 
         unless ($folder_found){
-            print "*** $account: no folder $settings{folder}\n";
+            print "*** $account: no folder $settings->{folder}\n";
             next;
         }
 
         # read all messages
         # needs " to quote folder, ' do not work
         # fetch the first messages
-        my $earlier = time - $settings{report_back_h}*3600;
+        my $earlier = time - $settings->{report_back_h}*3600;
         $earlier = $earlier*1000; # they want millisecs
 
-        my @lines = split /\n/, $box->cmd("search --types message 'in:/$settings{folder} after:$earlier'");
+        my @lines = split /\n/, $box->cmd("search --types message 'in:/$settings->{folder} after:$earlier'");
         my @field_positions;
         my @msgs; # array of hashes [{from => foo@bar.com, date => 01/25/17, msg => whatever, I mailed it}]
         while (@lines){
@@ -176,7 +162,7 @@ sub run {
 
             # substitute tags
             $msg_body =~ s/\{\{\s*user\s*\}\}/$account/gm;
-            $msg_body =~ s/\{\{\s*report\_back\_h\s*\}\}/$settings{report_back_h}/gm;
+            $msg_body =~ s/\{\{\s*report\_back\_h\s*\}\}/$settings->{report_back_h}/gm;
             my $mails_number = scalar(@msgs);
             $msg_body =~ s/\{\{\s*mails\_number\s*\}\}/$mails_number/gm;
 
@@ -195,7 +181,7 @@ sub run {
             close $mh;
         }
         else {
-            say "$account: no mails in $settings{folder} in the last $settings{report_back_h} h";
+            say "$account: no mails in $settings->{folder} in the last $settings->{report_back_h} h";
         }
 
     }
