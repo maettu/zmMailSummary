@@ -1,6 +1,8 @@
 # zmMailSummary
 Get a summary of mails in a Zimbra folder for a defined time period.
 
+The summary is a mail that gets sent to each user.
+
 Example
 -------
 You have a spam filter that moves mail into /Junk.
@@ -19,3 +21,20 @@ The output would look like so (and you can of course change the template)
     17/02/05 06:33 boo@evil.org   we'd love to spam you
     17/02/05 07:15 sp@am.hidden   catch me when I spam
     ...
+
+Setup
+-----
+Until we have configure-make-install:
+
+    mkdir thirdparty
+
+    wget -O thirdparty/cpanm https://cpanmin.us
+                or
+    curl -L https://cpanmin.us/ -o thirdparty/cpanm
+
+    chmod 755 thirdparty/cpanm
+    thirdparty/cpanm --notest --local-lib thirdparty/ --save-dists thirdparty/CPAN/ --force Mojo
+
+Run
+---
+    bin/zmMailSummary provide

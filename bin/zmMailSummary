@@ -1,0 +1,23 @@
+#!/usr/bin/perl
+use 5.10.1;
+use strict; use warnings;
+use FindBin;
+
+use lib qw();
+
+# use the local lib (command etc)
+use lib "$FindBin::RealBin/../lib/";
+# use the local lib for dependencies
+use lib "$FindBin::RealBin/../thirdparty/lib/perl5";
+
+use Mojo::Base -base;
+
+# having a non-C locale for number will wreck all sorts of havoc
+# when things get converted to string and back
+use POSIX qw(locale_h);
+setlocale(LC_NUMERIC, "C");
+use Mojolicious::Commands;
+
+Mojolicious::Commands->start_app('ZmMailSummary');
+
+
