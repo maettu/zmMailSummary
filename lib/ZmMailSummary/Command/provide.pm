@@ -195,7 +195,7 @@ sub run {
 }
 
 sub _read_settings{
-    open my $sh, '<', "$FindBin::RealBin/../etc/settings" or die $!;
+    open my $sh, '<', "$FindBin::RealBin/../etc/zmmailsummary.cfg" or die $!;
     my $json_str;
     while (<$sh>){
         chomp;
