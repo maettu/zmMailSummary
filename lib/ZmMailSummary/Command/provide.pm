@@ -6,7 +6,10 @@ use IO::Handle;
 use Carp;
 use FindBin;
 use Mojo::JSON qw(decode_json);
+use Mojo::File;
 use Data::Processor;
+use Encode;
+binmode (STDOUT, ':utf8');
 
 =head1 NAME
 
@@ -63,7 +66,6 @@ sub run {
         croak "$0 only works when running as user 'zimbra'";
     }
 
-    # TODO rename settings into zmMailSummary.cfg
     # read settings
     my $settings = _read_settings();
     my @excludes = _read_exclude_file($settings);
@@ -141,6 +143,7 @@ sub run {
                 my $from = $1;
 
                 my $subject = $rest;
+                $subject =~ s/\s*$//;
 
                 push @msgs, {
                     from    => $from,
@@ -153,36 +156,25 @@ sub run {
 
         if (scalar(@msgs) > 0){
             # load template
-            open my $th, '<', "$FindBin::RealBin/../templates/mail_template.html" or die $!;
-            my $subject = "new spam";
-            my $msg_body = "";
-            while (my $l = <$th>){
-                $l =~ /^\s*subject:\s*(.*)$/ && do {
-                    $subject = $1;
-                    next;
-                };
-                $msg_body .= $l;
-            }
-            close $th;
+            # TODO user language
+            my $path = Mojo::File->new(
+                "$FindBin::RealBin/../templates/mail_template.txt.ep"
+            );
+            my $r = {
+                user => $account,
+                report_back_h => $settings->{report_back_h},
+                mails_number => scalar(@msgs),
+                msgs => \@msgs,
+            };
 
-            # substitute tags
-            $msg_body =~ s/\{\{\s*user\s*\}\}/$account/gm;
-            $msg_body =~ s/\{\{\s*report\_back\_h\s*\}\}/$settings->{report_back_h}/gm;
-            my $mails_number = scalar(@msgs);
-            $msg_body =~ s/\{\{\s*mails\_number\s*\}\}/$mails_number/gm;
+            my $template = '% my $r = shift;'."\n";
+            $template.= decode('UTF-8', $path->slurp);
 
+            say "sending to $account";
             # send mail
             open my $mh, "|/usr/sbin/sendmail -t";
             say $mh "To: $account";
-            say $account;
-            my $table_rows = "";
-            for (@msgs){
-                $table_rows .=  "<tr><td>$_->{date}</td><td>$_->{from}</td><td>$_->{subject}</td></tr>";
-            }
-
-            $msg_body =~ s/---tablerows---/$table_rows/gm;
-
-            say $mh $msg_body;
+            say $mh encode('UTF-8', Mojo::Template->new->render($template, $r));
             close $mh;
         }
         else {
