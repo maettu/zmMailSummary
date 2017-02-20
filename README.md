@@ -26,14 +26,7 @@ Setup
 -----
 Until we have configure-make-install:
 
-    mkdir thirdparty
-
-    wget -O thirdparty/cpanm https://cpanmin.us
-                or
-    curl -L https://cpanmin.us/ -o thirdparty/cpanm
-
-    chmod 755 thirdparty/cpanm
-    thirdparty/cpanm --notest --local-lib thirdparty/ --save-dists thirdparty/CPAN/ --force Mojo
+    ./install_deps.sh
 
 Run
 ---
