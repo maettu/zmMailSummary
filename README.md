@@ -24,16 +24,47 @@ The output would look like so (and you can of course change the template)
 
 Setup
 -----
-Until we have configure-make-install:
+    ./bootstrap
+    ./configure
+    make
 
-    ./install_deps.sh
+Release
+-------
+    make dist
+
+Deploy
+------
+    ./configure
+    make
+
+Pass .tar.gz on to customer
+
+Implement
+--------
+
+    tar -xvzf zmmailsummary-(version).tar.gz
+    cd zmmailsummary-(version).tar.gz
+
+- make file "etc/exclude_list" and put in addressees to skip. One mail address per line.
+- copy "etc/zmmailsummary.cfg.dist" to "etc/zmmailsummary.cfg" and edit
+- edit "template/mail_template.txt.ep"
+
+    ./configure
+    make
+    (make install)
+
+Testing: instead of "make install", run from the current directory.
+
+Test / Debug
+------------
+print debug messages and only send to mailboxes matching an account
+
+    bin/zmMailSummary provide -d --account-names=matthias
+
+Sends mail to all accounts that contain "matthias" somewhere in their name.
 
 Run
 ---
     bin/zmMailSummary provide
 
-Debug
------
-print debug messages and only send to mailboxes matching an account
-
-    bin/zmMailSummary provide -d --account-names=matthias
+Send mail to all users with new mail in the selected folder.
