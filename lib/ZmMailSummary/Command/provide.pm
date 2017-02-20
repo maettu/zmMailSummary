@@ -5,6 +5,7 @@ use Getopt::Long 2.25 qw(:config posix_default no_ignore_case);
 use IO::Handle;
 use Carp;
 use Mojo::JSON qw(decode_json);
+use Data::Processor;
 
 =head1 NAME
 
@@ -17,6 +18,7 @@ ZmMailSummary::Command::provide - provide a summary of new mail in a folder by s
     options:
         -n | --noaction don't send mails.
         -v | --verbose  be very noisy
+        --account-names a regex; send only to names matching
 
 
 =head1 DESCRIPTION
@@ -61,14 +63,7 @@ sub run {
     }
 
     # read settings
-    open my $sh, '<', 'etc/settings' or die $!; # TODO run from everywhere
-    my $json_str;
-    while (<$sh>){
-        chomp;
-        $json_str .= $_;
-    }
-    my $settings = decode_json $json_str;
-    # TODO Data::Processor
+    my $settings = _read_settings();
 
     # get accounts
     my @accounts = grep /\@/, split /\n/, zmProv->new(noaction=>$opt{noaction},verbose=>$opt{verbose},debug=>$opt{debug})->cmd('gaa') ;
@@ -188,6 +183,43 @@ sub run {
 
     $say->(scalar(@accounts));
 
+sub _read_settings{
+    open my $sh, '<', 'etc/settings' or die $!; # TODO run from everywhere
+    my $json_str;
+    while (<$sh>){
+        chomp;
+        $json_str .= $_;
+    }
+    my $settings = decode_json $json_str;
+    my $schema = {
+        GENERAL => {
+            members => {
+                folder => {
+                    description => 'the Zimbra mail folder'
+                },
+                exclude_file => {
+                    description => 'file with a list of addresses to skip',
+                    validator => sub {
+                        my $value = shift;
+                        return undef if -f $value;
+                        return "file $value does not exist";
+                    }
+                },
+                report_back_h => {
+                    description => 'how many hours back you want reported'
+                }
+            }
+        }
+    };
+    my $errors = Data::Processor->new($schema)->validate($settings);
+    if ($errors->count > 0){
+        say join "\n", $errors->as_array();
+        exit;
+    }
+#~     use Data::Dumper; say Dumper $settings->{GENERAL};
+#~     exit;
+    return $settings->{GENERAL};
+}
 
 
 #~     GetOptions(\%opt, 'noaction|no-action|n', 'verbose|v');
