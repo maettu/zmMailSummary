@@ -3,7 +3,7 @@
 AC_INIT([zmMailSummary],m4_esyscmd([tr -d '\n' < VERSION]),[matthias.bloch@oetiker.ch])
 AC_PREREQ([2.59])
 AC_CONFIG_AUX_DIR(conftools)
-SCRIPT_NAME=zmMailSummary.pl
+SCRIPT_NAME=zm_mail_summary
 AC_SUBST(SCRIPT_NAME)
 CLASS_NAME=ZmMailSummary
 AC_SUBST(CLASS_NAME)
