@@ -31,3 +31,9 @@ Until we have configure-make-install:
 Run
 ---
     bin/zmMailSummary provide
+
+Debug
+-----
+print debug messages and only send to mailboxes matching an account
+
+    bin/zmMailSummary provide -d --account-names=matthias

@@ -4,6 +4,7 @@ use Mojo::Base 'Mojolicious::Command';
 use Getopt::Long 2.25 qw(:config posix_default no_ignore_case);
 use IO::Handle;
 use Carp;
+use FindBin;
 use Mojo::JSON qw(decode_json);
 use Data::Processor;
 
@@ -47,9 +48,9 @@ my $debug = sub{
 # gets called by Mojo
 sub run {
     my $self = shift;
-
+    local @ARGV = @_;
     # parse options
-    GetOptions(\%opt, 'help|h', 'man', 'noaction|no-action|n','all','debug', 'verbose|v')
+    GetOptions(\%opt, 'help|h', 'man', 'noaction|no-action|n','all','debug|d', 'verbose|v', 'account-names=s')
         or exit(1);
     if ($opt{help})     { pod2usage(1) }
     if ($opt{man})      { pod2usage(-exitstatus => 0, -verbose => 2, -noperldoc=>1) }
@@ -64,6 +65,7 @@ sub run {
 
     # read settings
     my $settings = _read_settings();
+    my @excludes = _read_exclude_file($settings);
 
     # get accounts
     my @accounts = grep /\@/, split /\n/, zmProv->new(noaction=>$opt{noaction},verbose=>$opt{verbose},debug=>$opt{debug})->cmd('gaa') ;
@@ -73,6 +75,15 @@ sub run {
     for my $account (@accounts){
         # change to account
         $box->cmd("sm $account");
+
+        $opt{'account-names'} && do {
+            $account =~ /$opt{'account-names'}/ || do {
+                $debug->("skip $account, does not match $opt{'account-names'}");
+                next;
+            }
+        };
+
+        next if _in_list($account, @excludes);
 
         next unless $account =~ /matthias/;
 
@@ -143,7 +154,7 @@ sub run {
 
         if (scalar(@msgs) > 0){
             # load template
-            open my $th, '<', 'etc/mail_template.html';
+            open my $th, '<', "$FindBin::RealBin/../etc/mail_template.html" or die $!;
             my $subject = "new spam";
             my $msg_body = "";
             while (my $l = <$th>){
@@ -182,9 +193,10 @@ sub run {
     }
 
     $say->(scalar(@accounts));
+}
 
 sub _read_settings{
-    open my $sh, '<', 'etc/settings' or die $!; # TODO run from everywhere
+    open my $sh, '<', "$FindBin::RealBin/../etc/settings" or die $!;
     my $json_str;
     while (<$sh>){
         chomp;
@@ -216,19 +228,35 @@ sub _read_settings{
         say join "\n", $errors->as_array();
         exit;
     }
-#~     use Data::Dumper; say Dumper $settings->{GENERAL};
-#~     exit;
     return $settings->{GENERAL};
+
 }
 
+sub _read_exclude_file{
+    my $settings = shift;
+    open my $xh, '<', "$FindBin::RealBin/../$settings->{exclude_file}" or die $!;
+    my @excludes;
+    while (<$xh>){
+        chomp;
+        s/^\s*//;
+        s/\s*$//;
+        next if /^\s*$/;
+        push @excludes, $_;
+    }
+    return @excludes;
+}
 
-#~     GetOptions(\%opt, 'noaction|no-action|n', 'verbose|v');
-#~     if ($opt{verbose}){
-#~         $self->log->level('debug');
-#~         $self->app->log->handle(\*STDOUT);
-#~     }
-#~
-#~     say "it works";
+sub _in_list{
+    my $item = shift;
+    my @array = @_;
+
+    for (@array){
+        /$item/ && do {
+            $debug->("skipping $item because in exclude_list");
+            return 1;
+        }
+    }
+    return 0;
 }
 
 1;
