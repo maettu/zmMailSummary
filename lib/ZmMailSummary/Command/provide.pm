@@ -63,7 +63,6 @@ sub run {
         croak "$0 only works when running as user 'zimbra'";
     }
 
-    # TODO move mail template to templates/
     # TODO rename settings into zmMailSummary.cfg
     # read settings
     my $settings = _read_settings();
@@ -154,7 +153,7 @@ sub run {
 
         if (scalar(@msgs) > 0){
             # load template
-            open my $th, '<', "$FindBin::RealBin/../etc/mail_template.html" or die $!;
+            open my $th, '<', "$FindBin::RealBin/../templates/mail_template.html" or die $!;
             my $subject = "new spam";
             my $msg_body = "";
             while (my $l = <$th>){
