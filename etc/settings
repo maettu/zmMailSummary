@@ -2,6 +2,7 @@
     "GENERAL" : {
         "folder"        : "Inbox",
         "exclude_file"  : "etc/exclude_list",
-        "report_back_h" : "240"
+        "report_back_h" : "240", 
+        "report_back_days" : "10"
     }
 }

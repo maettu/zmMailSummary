@@ -63,6 +63,8 @@ sub run {
         croak "$0 only works when running as user 'zimbra'";
     }
 
+    # TODO move mail template to templates/
+    # TODO rename settings into zmMailSummary.cfg
     # read settings
     my $settings = _read_settings();
     my @excludes = _read_exclude_file($settings);
@@ -86,8 +88,6 @@ sub run {
         next if _in_list($account, @excludes);
 
         next unless $account =~ /matthias/;
-
-        # TODO exclude list
 
         $say->("account: $account");
 
@@ -217,9 +217,14 @@ sub _read_settings{
                         return "file $value does not exist";
                     }
                 },
+                # TODO wegde out
                 report_back_h => {
                     description => 'how many hours back you want reported'
+                },
+                report_back_days => {
+                    description => 'e.g. setting this to 1 reports mails from yesterday'
                 }
+
             }
         }
     };
