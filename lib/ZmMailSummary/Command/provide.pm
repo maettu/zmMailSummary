@@ -127,8 +127,9 @@ sub run {
             # a line with a message:
             # no id    type   sender  subject    date / time
             # 1. 1726  mess   foo@bar whatnot    02/15/17 16:25
-            $line =~ /^\s*\d+\.\s+\d+\s+mess\s+(.*)$/ && do {
-                my $rest = $1;
+            $line =~ /^\s*\d+\.\s+(\d+)\s+mess\s+(.*)$/ && do {
+                my $id = $1;
+                my $rest = $2;
 
                 # chomp date off the end
                 $rest =~ s{(\d+)/(\d+)/(\d+)\s+(\d+):(\d+)\s*$}{};
@@ -146,6 +147,7 @@ sub run {
                 $subject =~ s/\s*$//;
 
                 push @msgs, {
+                    url     => "$settings->{zimbra_url}/?id=$id",
                     from    => $from,
                     subject => $subject,
                     date    => "$day.$month.$year $hour:$min"
@@ -214,6 +216,10 @@ sub _read_settings{
                 },
                 report_back_days => {
                     description => 'e.g. setting this to 1 reports mails from yesterday'
+                },
+                zimbra_url => {
+                    description => 'URL of your zimbra-web',
+                    value => qr{https?://.+}
                 }
 
             }
