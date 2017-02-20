@@ -88,7 +88,7 @@ sub run {
 
         next if _in_list($account, @excludes);
 
-        next unless $account =~ /matthias/;
+#~         next unless $account =~ /matthias/;
 
         $say->("account: $account");
 
