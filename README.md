@@ -43,7 +43,7 @@ Implement
 --------
 
     tar -xvzf zmmailsummary-(version).tar.gz
-    cd zmmailsummary-(version).tar.gz
+    cd zmmailsummary-(version)
 
 - make file "etc/exclude_list" and put in addressees to skip. One mail address per line.
 - copy "etc/zmmailsummary.cfg.dist" to "etc/zmmailsummary.cfg" and edit
