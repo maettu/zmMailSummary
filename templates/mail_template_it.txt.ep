@@ -1,0 +1,26 @@
+From: test@oetiker.ch
+Subject: nuovo spam  
+Content-Type: text/html; charset=UTF-8
+
+<html>
+    <head></head>
+    <body>
+        <h1>pregato di tradurre in italiano corretto, grazie</h1>
+        <h2>nuovo spam per <%= $r->{user} %> </h2>
+        <p>
+           <%= $r->{mails_number} %> nuovo spam nelle <%= $r->{report_back_h} %> ultime ore 
+        </p>
+        <table border="1">
+            <tr><td>data</td><td>da</td><td>ogetto</td><td>azione</td></tr>
+            % for my $msg (@{$r->{msgs}}){
+                <tr>
+                    <td><%= $msg->{date} %></td>
+                    <td><%= $msg->{from} %></td>
+                    <td><%= $msg->{subject} %></td>
+                    <td><a href="<%= $msg->{url} %>">link</a></td>
+                </tr>
+            % }
+
+        </table>
+    </body>
+</html>

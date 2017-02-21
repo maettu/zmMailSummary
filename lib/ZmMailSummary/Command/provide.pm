@@ -71,7 +71,12 @@ sub run {
     my @excludes = _read_exclude_file($settings);
 
     # get accounts
-    my @accounts = grep /\@/, split /\n/, zmProv->new(noaction=>$opt{noaction},verbose=>$opt{verbose},debug=>$opt{debug})->cmd('gaa') ;
+    my $zmProv = zmProv->new(
+        noaction=>$opt{noaction},
+        verbose=>$opt{verbose},
+        debug=>$opt{debug}
+    );
+    my @accounts = grep /\@/, split /\n/, $zmProv->cmd('gaa') ;
 
     my $box = zmMailBox->new(verbose=>$opt{verbose},noaction=>$opt{noaction},debug=>$opt{debug});
 
@@ -87,8 +92,6 @@ sub run {
         };
 
         next if _in_list($account, @excludes);
-
-#~         next unless $account =~ /matthias/;
 
         $say->("account: $account");
 
@@ -158,9 +161,12 @@ sub run {
 
         if (scalar(@msgs) > 0){
             # load template
-            # TODO user language
+            # user language
+            my $user_locale = _get_user_locale($zmProv, $account, $settings);
+
+            # this should never fail because we check file existence during config validation
             my $path = Mojo::File->new(
-                "$FindBin::RealBin/../templates/mail_template.txt.ep"
+                "$FindBin::RealBin/../templates/mail_template_$user_locale.txt.ep"
             );
             my $r = {
                 user => $account,
@@ -173,6 +179,12 @@ sub run {
             $template.= decode('UTF-8', $path->slurp);
 
             say "sending to $account";
+
+            $opt{noaction} && do {
+                say "noaction: skip sending";
+                next;
+            };
+
             # send mail
             open my $mh, "|/usr/sbin/sendmail -t";
             say $mh "To: $account";
@@ -186,6 +198,18 @@ sub run {
     }
 
     $say->(scalar(@accounts));
+}
+
+sub _get_user_locale{
+    my $zmProv = shift;
+    my $account = shift;
+    my $settings = shift;
+    my @user_locale_lines = grep /zimbraPrefLocale/i, split /\n/, $zmProv->cmd("ga $account");
+    $debug->("-- $account --");
+    $user_locale_lines[0] =~ /: (.*)$/;
+    my $user_locale = $1 // $settings->{default_language};
+    $debug->("locale: $1");
+    return $user_locale;
 }
 
 sub _read_settings{
@@ -220,6 +244,23 @@ sub _read_settings{
                 zimbra_url => {
                     description => 'URL of your zimbra-web',
                     value => qr{https?://.+}
+                },
+                default_language => {
+                    description => 'default language, e.g. "de", "it" or "en_US"'
+                },
+                available_languages => {
+                    description => 'languages with a template. Naming scheme: "temlpates/mail_template_(locale).txt.ep", e.g. "templates/mail_template_fr_FR.txt.ep"',
+                    validator => sub {
+                        my $value = shift;
+                        return "please supply an array" unless ref $value eq "ARRAY";
+                        my @errors;
+                        for (@{$value}){
+                            push @errors, "templates/mail_template_$_.txt.ep not found"
+                                unless -f "templates/mail_template_$_.txt.ep";
+                        }
+                        return "\n". join "\n", @errors if @errors;
+                        return 0;
+                    }
                 }
 
             }
@@ -231,7 +272,6 @@ sub _read_settings{
         exit;
     }
     return $settings->{GENERAL};
-
 }
 
 sub _read_exclude_file{

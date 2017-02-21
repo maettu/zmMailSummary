@@ -21,11 +21,5 @@ Content-Type: text/html; charset=UTF-8
             % }
 
         </table>
-
-
-        <hr>
-        <h2>mail quarantine summary for <%= $r->{user} %></h2>
-        <p>you have received <%= $r->{mails_number} %> new spam mail (last <%= $r->{report_back_h} %> hours)</p>
-
     </body>
 </html>
