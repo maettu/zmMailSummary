@@ -2,8 +2,7 @@
     "GENERAL" : {
         "folder"        : "Inbox",
         "exclude_file"  : "etc/exclude_list",
-        "report_back_h" : "240", 
-        "report_back_days" : "10",
+        "report_back_days" : "1",
         "zimbra_url"    : "(put your zimbra url here, like https://zimbra.xyz.com)",
         "default_language" : "de",
         "available_languages" : ["de", "fr_FR", "it"]

@@ -47,7 +47,7 @@ Implement
 
 - make file "etc/exclude_list" and put in addressees to skip. One mail address per line.
 - copy "etc/zmmailsummary.cfg.dist" to "etc/zmmailsummary.cfg" and edit
-- edit "template/mail_template.txt.ep"
+- edit "templates/mail_template.txt.ep"
 
     ./configure
     make

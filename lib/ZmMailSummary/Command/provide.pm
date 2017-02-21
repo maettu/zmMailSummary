@@ -9,6 +9,8 @@ use Mojo::JSON qw(decode_json);
 use Mojo::File;
 use Data::Processor;
 use Encode;
+use Time::Piece;
+use Time::Seconds;
 binmode (STDOUT, ':utf8');
 
 =head1 NAME
@@ -113,10 +115,12 @@ sub run {
         # read all messages
         # needs " to quote folder, ' do not work
         # fetch the first messages
-        my $earlier = time - $settings->{report_back_h}*3600;
-        $earlier = $earlier*1000; # they want millisecs
-
-        my @lines = split /\n/, $box->cmd("search --types message 'in:/$settings->{folder} after:$earlier'");
+        my $t = localtime;
+        my $today = sprintf("%02d/%02d/%04d", $t->mon,$t->mday,$t->year);
+        $t -= ONE_DAY for (1..$settings->{report_back_days}+1);
+        my $one_day_before_start = sprintf("%02d/%02d/%04d", $t->mon,$t->mday,$t->year);
+        # report -x days until yesterday
+        my @lines = split /\n/, $box->cmd("search --types message 'in:/$settings->{folder} after:$one_day_before_start before:$today'");
         my @field_positions;
         my @msgs; # array of hashes [{from => foo@bar.com, date => 01/25/17, msg => whatever, I mailed it}]
         while (@lines){
@@ -170,7 +174,7 @@ sub run {
             );
             my $r = {
                 user => $account,
-                report_back_h => $settings->{report_back_h},
+                report_back_days => $settings->{report_back_days},
                 mails_number => scalar(@msgs),
                 msgs => \@msgs,
             };
@@ -192,7 +196,7 @@ sub run {
             close $mh;
         }
         else {
-            say "$account: no mails in $settings->{folder} in the last $settings->{report_back_h} h";
+            say "$account: no mails in $settings->{folder} in the last $settings->{report_back_days} days";
         }
 
     }
@@ -236,10 +240,6 @@ sub _read_settings{
                         return undef if -f $value;
                         return "file $value does not exist";
                     }
-                },
-                # TODO wegde out
-                report_back_h => {
-                    description => 'how many hours back you want reported'
                 },
                 report_back_days => {
                     description => 'e.g. setting this to 1 reports mails from yesterday'

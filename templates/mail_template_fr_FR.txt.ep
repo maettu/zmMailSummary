@@ -8,7 +8,7 @@ Content-Type: text/html; charset=UTF-8
         <h1>prière de traduire ce texte en propre Français</h1>
         <h2>noveau spam pour <%= $r->{user} %> </h2>
         <p>
-           Vous avez reçu <%= $r->{mails_number} %> nouveaux spam dans les dernières  <%= $r->{report_back_h} %> heures
+           Vous avez reçu <%= $r->{mails_number} %> nouveaux spam dans les dernières  <%= $r->{report_back_days} %> jours.
         </p>
         <table border="1">
             <tr><td>Date</td><td>Expéditeur</td><td>Sujet</td><td>Action</td></tr>
