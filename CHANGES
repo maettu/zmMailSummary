@@ -1,2 +1,11 @@
+2.0.0 2017-02-22  Matthias Bloch <matthias.bloch@oetiker.ch>
+- report x days back until yesterday (instead of x hours back from now)
+- honor unsubscribe
+- feature to mangle to: addresses globaly
+- bugfixes
+
+1.8.0 2017-02-21  Matthias Bloch <matthias.bloch@oetiker.ch>
+- multi language templates
+
 1.0.0 2017-02-20  Matthias Bloch <matthias.bloch@oetiker.ch>
 - initial release (stage 1, ready for testing)
