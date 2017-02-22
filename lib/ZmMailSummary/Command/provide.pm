@@ -33,7 +33,7 @@ whatever
 
 =cut
 
-has description => 'this is what gets printed on "perl bin/test.pl help"';
+has description => 'send a summary mail to each user with mails in the given folder (spam, e.g.)';
 # extract the usage information from the SYNOPSIS
 # e.g. "perl bin/test.pl help go"
 has usage => sub { shift->extract_usage };
@@ -48,7 +48,6 @@ my $debug = sub{
     my $msg = shift;
     print "***debug: $msg\n" if $opt{debug};
 };
-
 
 # gets called by Mojo
 sub run {
@@ -83,9 +82,6 @@ sub run {
     my $box = zmMailBox->new(verbose=>$opt{verbose},noaction=>$opt{noaction},debug=>$opt{debug});
 
     for my $account (@accounts){
-        # change to account
-        $box->cmd("sm $account");
-
         $opt{'account-names'} && do {
             $account =~ /$opt{'account-names'}/ || do {
                 $debug->("skip $account, does not match $opt{'account-names'}");
@@ -95,7 +91,19 @@ sub run {
 
         next if _in_list($account, @excludes);
 
-        $say->("account: $account");
+        # the MailboxManager tool sets amavisBlacklistSender: $settings->{unsubscribe}
+        my @blacklist = grep /amavisBlacklistSender:.*$settings->{unsubscribe}/, split /\n/, $zmProv->cmd("ga $account");
+        @blacklist && do {
+            say "skip $account (has option set in Mailmanager)";
+            next;
+        };
+
+        # change to account
+        $box->cmd("sm $account");
+
+        my $send_to = $account;
+        $send_to =~ s/$settings->{change_to_address}[0]/$settings->{change_to_address}[1]/
+            if $settings->{change_to_address};
 
 
         # check folder found
@@ -155,8 +163,8 @@ sub run {
 
                 push @msgs, {
                     url     => "$settings->{zimbra_url}/?id=$id",
-                    from    => $from,
-                    subject => $subject,
+                    from    => decode('UTF-8', $from),
+                    subject => decode('UTF-8', $subject),
                     date    => "$day.$month.$year $hour:$min"
                 };
             };
@@ -182,7 +190,7 @@ sub run {
             my $template = '% my $r = shift;'."\n";
             $template.= decode('UTF-8', $path->slurp);
 
-            say "sending to $account";
+            say "send account: '$account' to: '$send_to'";
 
             $opt{noaction} && do {
                 say "noaction: skip sending";
@@ -191,12 +199,12 @@ sub run {
 
             # send mail
             open my $mh, "|/usr/sbin/sendmail -t";
-            say $mh "To: $account";
+            say $mh "To: $send_to";
             say $mh encode('UTF-8', Mojo::Template->new->render($template, $r));
             close $mh;
         }
         else {
-            say "$account: no mails in $settings->{folder} in the last $settings->{report_back_days} days";
+            say "skip $account: no mails in $settings->{folder} in the last $settings->{report_back_days} days";
         }
 
     }
@@ -237,8 +245,18 @@ sub _read_settings{
                     description => 'file with a list of addresses to skip',
                     validator => sub {
                         my $value = shift;
-                        return undef if -f $value;
+                        return undef if -f "$FindBin::RealBin/../$value";
                         return "file $value does not exist";
+                    }
+                },
+                change_to_address => {
+                    description => 'regex replacment for to:. a no-op if empty',
+                    validator => sub {
+                        my $value = shift;
+                        return undef unless $value; # empty value ok.
+                        return 'please supply an array with 2 values'
+                            unless ref($value) eq 'ARRAY' and scalar(@{$value} == 2);
+                        return undef;
                     }
                 },
                 report_back_days => {
@@ -259,13 +277,15 @@ sub _read_settings{
                         my @errors;
                         for (@{$value}){
                             push @errors, "templates/mail_template_$_.txt.ep not found"
-                                unless -f "templates/mail_template_$_.txt.ep";
+                                unless -f "$FindBin::RealBin/../templates/mail_template_$_.txt.ep";
                         }
                         return "\n". join "\n", @errors if @errors;
-                        return 0;
+                        return undef;
                     }
+                },
+                unsubscribe => {
+                    description => 'user can enter this "mail address" in preferences -> blacklist to not receive our mail',
                 }
-
             }
         }
     };
