@@ -1,25 +1,11 @@
-From: test@oetiker.ch
-Subject: new spam
-Content-Type: text/html; charset=UTF-8
+Zusammenfassung E-Mail Quarantäne für <%= $user %> 
 
-<html>
-    <head></head>
-    <body>
-        <h2>Zusammenfassung E-Mail Quarantäne für <%= $r->{user} %> </h2>
-        <p>Als Spam eingestufte E-Mails legen wir in Ihrem persönlichen Quarantäne-Ordner ab.<br>
-           Sie haben in den letzten <%= $r->{report_back_days} %> Tagen <%= $r->{mails_number} %> neue Mails in ihrem Spam-Ordner.
-        </p>
-        <table border="1">
-            <tr><td>Datum</td><td>Absender</td><td>Betreff</td><td>Aktion</td></tr>
-            % for my $msg (@{$r->{msgs}}){
-                <tr>
-                    <td><%= $msg->{date} %></td>
-                    <td><%= $msg->{from} %></td>
-                    <td><%= $msg->{subject} %></td>
-                    <td><a href="<%= $msg->{url} %>">anzeigen</a></td>
-                </tr>
-            % }
+Als Spam eingestufte E-Mails legen wir in Ihrem persönlichen Quarantäne-Ordner ab.
+Sie haben in den letzten <%= $report_back_days %> Tagen <%= $mails_number %> neue Mails in ihrem Spam-Ordner.
 
-        </table>
-    </body>
-</html>
+% for my $msg (@msgs){
+    <%= $msg->{date} %> - <%= $msg->{from} %> 
+    <%= $msg->{subject} %> 
+    <%= $msg->{url} %>
+
+% }

@@ -1,0 +1,23 @@
+Subject: neuer Spam
+<html>
+    <head></head>
+    <body>
+        <img src="logo.png" alt="our logo" border="0">
+        <h2>Zusammenfassung E-Mail Quarantäne für <%= $user %> </h2>
+        <p>Als Spam eingestufte E-Mails legen wir in Ihrem persönlichen Quarantäne-Ordner ab.<br>
+           Sie haben in den letzten <%= $report_back_days %> Tagen <%= $mails_number %> neue Mails in ihrem Spam-Ordner.
+        </p>
+        <table border="1">
+            <tr><td>Datum</td><td>Absender</td><td>Betreff</td><td>Aktion</td></tr>
+            % for my $msg (@msgs){
+                <tr>
+                    <td><%= $msg->{date} %></td>
+                    <td><%= $msg->{from} %></td>
+                    <td><%= $msg->{subject} %></td>
+                    <td><a href="<%= $msg->{url} %>">anzeigen</a></td>
+                </tr>
+            % }
+
+        </table>
+    </body>
+</html>

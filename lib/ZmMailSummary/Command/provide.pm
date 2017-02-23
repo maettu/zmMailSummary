@@ -7,10 +7,13 @@ use Carp;
 use FindBin;
 use Mojo::JSON qw(decode_json);
 use Mojo::File;
+use Mojo::DOM;
 use Data::Processor;
 use Encode;
 use Time::Piece;
 use Time::Seconds;
+use Time::Local;
+use Mail::Sender;
 binmode (STDOUT, ':utf8');
 
 =head1 NAME
@@ -34,8 +37,6 @@ whatever
 =cut
 
 has description => 'send a summary mail to each user with mails in the given folder (spam, e.g.)';
-# extract the usage information from the SYNOPSIS
-# e.g. "perl bin/test.pl help go"
 has usage => sub { shift->extract_usage };
 
 my %opt;
@@ -49,23 +50,18 @@ my $debug = sub{
     print "***debug: $msg\n" if $opt{debug};
 };
 
-# gets called by Mojo
 sub run {
     my $self = shift;
     local @ARGV = @_;
-    # parse options
     GetOptions(\%opt, 'help|h', 'man', 'noaction|no-action|n','all','debug|d', 'verbose|v', 'account-names=s')
         or exit(1);
-    if ($opt{help})     { pod2usage(1) }
-    if ($opt{man})      { pod2usage(-exitstatus => 0, -verbose => 2, -noperldoc=>1) }
     if ($opt{noaction}) {
         $opt{verbose} = 1 ;
         warn "*** NO ACTION MODE ***\n";
     }
 
-    if ($ENV{USER} ne 'zimbra'){
-        croak "$0 only works when running as user 'zimbra'";
-    }
+    croak "$0 only works when running as user 'zimbra'"
+        unless ($ENV{USER} eq 'zimbra');
 
     # read settings
     my $settings = _read_settings();
@@ -105,7 +101,6 @@ sub run {
         $send_to =~ s/$settings->{change_to_address}[0]/$settings->{change_to_address}[1]/
             if $settings->{change_to_address};
 
-
         # check folder found
         my $folder_found = 0;
         for my $line (split /\n/, $box->cmd("getAllFolders")){
@@ -114,22 +109,19 @@ sub run {
             next unless $line =~ m|mess.+/$settings->{folder}\s*$|;
             $folder_found = 1;
         }
-
         unless ($folder_found){
             print "*** $account: no folder $settings->{folder}\n";
             next;
         }
 
         # read all messages
-        # needs " to quote folder, ' do not work
-        # fetch the first messages
-        my $t = localtime;
-        my $today = sprintf("%02d/%02d/%04d", $t->mon,$t->mday,$t->year);
-        $t -= ONE_DAY for (1..$settings->{report_back_days}+1);
-        my $one_day_before_start = sprintf("%02d/%02d/%04d", $t->mon,$t->mday,$t->year);
         # report -x days until yesterday
-        my @lines = split /\n/, $box->cmd("search --types message 'in:/$settings->{folder} after:$one_day_before_start before:$today'");
-        my @field_positions;
+        my $t = localtime;
+        my $before = timelocal(0,0,0, $t->mday, $t->mon-1, $t->year)*1000; # millisecs for zmmailbox
+        $t -= ONE_DAY for (1..$settings->{report_back_days});
+        my $after = timelocal(0,0,0, $t->mday, $t->mon-1, $t->year)*1000-1;
+        # fetch the first messages
+        my @lines = split /\n/, $box->cmd("search --types message 'in:/$settings->{folder} after:$after before:$before'");
         my @msgs; # array of hashes [{from => foo@bar.com, date => 01/25/17, msg => whatever, I mailed it}]
         while (@lines){
             my $line = shift @lines;
@@ -172,13 +164,16 @@ sub run {
         }
 
         if (scalar(@msgs) > 0){
-            # load template
-            # user language
+            # user locale
             my $user_locale = _get_user_locale($zmProv, $account, $settings);
 
+            # load templates
             # this should never fail because we check file existence during config validation
-            my $path = Mojo::File->new(
-                "$FindBin::RealBin/../templates/mail_template_$user_locale.txt.ep"
+            my %path = (
+                txt => Mojo::File->new(
+                    "$FindBin::RealBin/../templates/mail_template_$user_locale.txt.ep"),
+                html => Mojo::File->new(
+                    "$FindBin::RealBin/../templates/mail_template_$user_locale.html.ep")
             );
             my $r = {
                 user => $account,
@@ -187,8 +182,11 @@ sub run {
                 msgs => \@msgs,
             };
 
-            my $template = '% my $r = shift;'."\n";
-            $template.= decode('UTF-8', $path->slurp);
+            my $template = '% my $r = shift;'."\n".
+                '% my $user = $r->{user};'."\n".
+                '% my $report_back_days = $r->{report_back_days};'."\n".
+                '% my $mails_number = $r->{mails_number};'."\n".
+                '% my @msgs = @{$r->{msgs}};'."\n";
 
             say "send account: '$account' to: '$send_to'";
 
@@ -198,18 +196,76 @@ sub run {
             };
 
             # send mail
-            open my $mh, "|/usr/sbin/sendmail -t";
-            say $mh "To: $send_to";
-            say $mh encode('UTF-8', Mojo::Template->new->render($template, $r));
-            close $mh;
+            my $msg = Mail::Sender->new({
+                smtp => $settings->{mail_server},
+                $opt{debug} ? ( debug => \*STDERR ) : (),
+                on_errors => 'die',
+                TSL_allowed => 0
+            });
+
+            # extract subject: from html template (1st line)
+            my $html = Mojo::Template->new->render($template.decode('UTF-8', $path{html}->slurp), $r);
+            $html =~ s/^Subject: (.*)//;
+
+            $msg->OpenMultipart({
+                subject   => $1,
+                to        => $send_to,
+                from      => $settings->{mail_from},
+                multipart => 'related',
+            });
+
+            $msg->Part({
+                ctype => 'multipart/alternative'
+            });
+
+            $msg->Part({
+                charset     => 'UTF-8',
+                encoding    => 'Quoted-printable',
+                ctype       => 'text/plain',
+                disposition => 'NONE',
+                msg         => Mojo::Template->new->render(
+                    $template.decode('UTF-8', $path{txt}->slurp), $r),
+            });
+
+            # need to render template first, then replace img tags.
+            # dom renderer otherwise changes template substitutions in tags, to tags
+            my $dom = Mojo::DOM->new($html);
+            $dom->find('img')->each(sub {$_->replace("<img src='cid:$_->{src}'/>")});
+            $html = $dom->to_string;
+            # prepend DOCTYPE
+            $html = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">'.$html;
+            $msg->Part({
+                charset     => 'UTF-8',
+                encoding    => 'Quoted-printable',
+                ctype       => 'text/html',
+                disposition => 'NONE',
+                msg         => $html,
+            });
+
+            $msg->EndPart('multipart/alternative');
+
+            Mojo::DOM->new($path{html}->slurp)->find('img')->each(sub {
+                my $src = $_->{src}; # file name is in the src tag
+                $src =~ /\.(\w+)$/;
+
+                $msg->Attach({
+                    ctype       => "image/$1",
+                    encoding    => 'base64',
+                    disposition => qq{inline; filename="$src";\r\nContent-ID: $src},
+                    file        => "$FindBin::RealBin/../templates/$src"
+                });
+
+
+            });
+
+            $msg->Close();
+
         }
         else {
             say "skip $account: no mails in $settings->{folder} in the last $settings->{report_back_days} days";
         }
 
     }
-
-    $say->(scalar(@accounts));
 }
 
 sub _get_user_locale{
@@ -249,8 +305,14 @@ sub _read_settings{
                         return "file $value does not exist";
                     }
                 },
+                mail_server => {
+                    description => 'the mail server you want to send mails through',
+                },
+                mail_from => {
+                    description => 'what should be shown in the "From:"'
+                },
                 change_to_address => {
-                    description => 'regex replacment for to:. a no-op if empty',
+                    description => 'regex replacment for "To:". a no-op if empty',
                     validator => sub {
                         my $value = shift;
                         return undef unless $value; # empty value ok.
@@ -272,12 +334,26 @@ sub _read_settings{
                 available_languages => {
                     description => 'languages with a template. Naming scheme: "temlpates/mail_template_(locale).txt.ep", e.g. "templates/mail_template_fr_FR.txt.ep"',
                     validator => sub {
-                        my $value = shift;
-                        return "please supply an array" unless ref $value eq "ARRAY";
+                        my $lang = shift;
+                        return "please supply an array" unless ref $lang eq "ARRAY";
                         my @errors;
-                        for (@{$value}){
-                            push @errors, "templates/mail_template_$_.txt.ep not found"
-                                unless -f "$FindBin::RealBin/../templates/mail_template_$_.txt.ep";
+                        for my $l (@{$lang}){
+                            for my $type ('txt', 'html'){
+                                my $f = "$FindBin::RealBin/../templates/mail_template_$l.$type.ep";
+                                push @errors, "$f not found" unless -f $f;
+
+                                next unless $type eq 'html';
+                                Mojo::DOM->new(Mojo::File->new($f)->slurp)
+                                    ->find('img')->each(
+                                        sub {
+                                            my $src = "$FindBin::RealBin/../templates/".$_->{src};
+                                            push @errors, "referenced img $src not found ($f)"
+                                                unless -f "$src"
+                                        }
+                                );
+                                push @errors, "html template $f does not start with 'Subject:' on first line"
+                                    unless Mojo::File->new($f)->slurp =~ /^Subject:/;
+                            }
                         }
                         return "\n". join "\n", @errors if @errors;
                         return undef;

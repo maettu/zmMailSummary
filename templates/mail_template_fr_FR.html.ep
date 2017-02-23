@@ -1,0 +1,24 @@
+Subject: nouveau Spam
+<html>
+    <head></head>
+    <body>
+        <img src="logo.png" alt="our logo" border="0">
+        <h1>prière de traduire ce texte en propre Français</h1>
+        <h2>noveau spam pour <%= $user %> </h2>
+        <p>
+           Vous avez reçu <%= $mails_number %> nouveaux spam dans les dernières  <%= $report_back_days %> jours.
+        </p>
+        <table border="1">
+            <tr><td>Date</td><td>Expéditeur</td><td>Sujet</td><td>Action</td></tr>
+            % for my $msg (@msgs){
+                <tr>
+                    <td><%= $msg->{date} %></td>
+                    <td><%= $msg->{from} %></td>
+                    <td><%= $msg->{subject} %></td>
+                    <td><a href="<%= $msg->{url} %>">afficher</a></td>
+                </tr>
+            % }
+
+        </table>
+    </body>
+</html>

@@ -2,11 +2,13 @@
     "GENERAL" : {
         "folder"              : "Inbox",
         "exclude_file"        : "etc/exclude_list",
-        "change_to_address"   : ["@example-productive.com", "@example-preprod.com"],
         "report_back_days"    : "1",
         "zimbra_url"          : "https : //zimbra.example-productive.com",
         "default_language"    : "de",
         "available_languages" : ["de", "fr_FR", "it"],
-        "unsubscribe"         : "__notifierUnsubscribe__"
+        "unsubscribe"         : "__notifierUnsubscribe__",
+        "mail_server"         : "smtp.example-prod.com",
+        "mail_from"           : "test@oetiker.ch",
+        "change_to_address"   : ["@example-productive.com", "@example-preprod.com"]
     }
 }
