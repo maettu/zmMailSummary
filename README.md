@@ -49,6 +49,8 @@ Implement
 - copy "etc/zmmailsummary.cfg.dist" to "etc/zmmailsummary.cfg" and edit
 - edit "templates/mail_template.txt.ep"
 
+then, run
+
     ./configure
     make
     (make install)
