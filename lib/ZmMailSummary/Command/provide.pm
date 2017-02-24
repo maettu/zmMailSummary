@@ -254,8 +254,6 @@ sub run {
                     disposition => qq{inline; filename="$src";\r\nContent-ID: $src},
                     file        => "$FindBin::RealBin/../templates/$src"
                 });
-
-
             });
 
             $msg->Close();
@@ -264,7 +262,6 @@ sub run {
         else {
             say "skip $account: no mails in $settings->{folder} in the last $settings->{report_back_days} days";
         }
-
     }
 }
 
