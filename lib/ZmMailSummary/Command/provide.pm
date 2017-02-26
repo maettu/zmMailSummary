@@ -13,8 +13,11 @@ use Encode;
 use Time::Piece;
 use Time::Seconds;
 use Time::Local;
-use Mail::Sender;
+use Email::MIME;
+use Email::Sender::Simple qw(sendmail);
+use Email::Sender::Transport::SMTP qw();
 binmode (STDOUT, ':utf8');
+binmode (STDERR, ':utf8');
 
 =head1 NAME
 
@@ -27,6 +30,8 @@ ZmMailSummary::Command::provide - provide a summary of new mail in a folder by s
     options:
         -n | --noaction don't send mails.
         -v | --verbose  be very noisy
+        -d | --debug    print debug messages
+        -f | --force    send mails even if already sent today
         --account-names a regex; send only to names matching
 
 
@@ -53,7 +58,7 @@ my $debug = sub{
 sub run {
     my $self = shift;
     local @ARGV = @_;
-    GetOptions(\%opt, 'help|h', 'man', 'noaction|no-action|n','all','debug|d', 'verbose|v', 'account-names=s')
+    GetOptions(\%opt, 'noaction|no-action|n', 'debug|d', 'verbose|v', 'account-names=s', 'force|f')
         or exit(1);
     if ($opt{noaction}) {
         $opt{verbose} = 1 ;
@@ -195,68 +200,102 @@ sub run {
                 next;
             };
 
+            # TODO get timestamp "last send time" from LDAP:
+            # matthias_test_1@zimbra.oetiker.ch +zimbraZimletUserProperties "ch_oep_test:irgendwas beliebiges"
+            # zmprov ga matthias_test_1@zimbra.oetiker.ch |grep ch_oep
+            # zimbra@wartburg:~$ zmprov ga  |grep ch_oep
+            # zimbraZimletUserProperties: ch_oep_test:favouriteFood:chocolate
+            # zimbraZimletUserProperties: ch_oep_test:irgendwas beliebiges
+
             # send mail
-            my $msg = Mail::Sender->new({
-                smtp => $settings->{mail_server},
-                $opt{debug} ? ( debug => \*STDERR ) : (),
-                on_errors => 'die',
-                TSL_allowed => 0
-            });
 
             # extract subject: from html template (1st line)
             my $html = Mojo::Template->new->render($template.decode('UTF-8', $path{html}->slurp), $r);
             $html =~ s/^Subject: (.*)//;
+            my $subject = $1;
 
-            $msg->OpenMultipart({
-                subject   => $1,
-                to        => $send_to,
-                from      => $settings->{mail_from},
-                multipart => 'related',
-            });
-
-            $msg->Part({
-                ctype => 'multipart/alternative'
-            });
-
-            $msg->Part({
-                charset     => 'UTF-8',
-                encoding    => 'Quoted-printable',
-                ctype       => 'text/plain',
-                disposition => 'NONE',
-                msg         => Mojo::Template->new->render(
-                    $template.decode('UTF-8', $path{txt}->slurp), $r),
-            });
+            my $txt_body = Email::MIME->create(
+                attrbutes => {
+                    content_type => 'text/plain',
+                    charset      => 'UTF-8',
+                    encoding     => 'Quoted-printable',
+                },
+                body => encode('UTF-8', Mojo::Template->new->render(
+                    $template.decode('UTF-8', $path{txt}->slurp), $r))
+            );
 
             # need to render template first, then replace img tags.
             # dom renderer otherwise changes template substitutions in tags, to tags
             my $dom = Mojo::DOM->new($html);
-            $dom->find('img')->each(sub {$_->replace("<img src='cid:$_->{src}'/>")});
+            $dom->find('img')->each(sub {
+                return if $_->{src} =~ /^http/; # only rewrite inlined images
+                $_->replace("<img src=\"cid:$_->{src}\"/>")
+            });
             $html = $dom->to_string;
             # prepend DOCTYPE
             $html = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">'.$html;
-            $msg->Part({
-                charset     => 'UTF-8',
-                encoding    => 'Quoted-printable',
-                ctype       => 'text/html',
-                disposition => 'NONE',
-                msg         => $html,
-            });
 
-            $msg->EndPart('multipart/alternative');
+            my $html_body = Email::MIME->create(
+                attributes => {
+                    content_type => 'text/html',
+                    charset      => 'UTF-8',
+                    encoding     => 'Quoted-printable',
+                },
+                body => encode('UTF-8', $html)
+            );
 
+            my @attachments = ();
             Mojo::DOM->new($path{html}->slurp)->find('img')->each(sub {
                 my $src = $_->{src}; # file name is in the src tag
+                return if $src =~ /^http/; # only inline local images
                 $src =~ /\.(\w+)$/;
 
-                $msg->Attach({
-                    ctype       => "image/$1",
-                    encoding    => 'base64',
-                    disposition => qq{inline; filename="$src";\r\nContent-ID: $src},
-                    file        => "$FindBin::RealBin/../templates/$src"
-                });
+                push @attachments, Email::MIME->create(
+                    attributes => {
+                        content_type => "image/$1",
+                        encoding     => 'base64',
+                        disposition  => qq{inline; filename="$src"\nContent-ID: $src},
+                    },
+                    body => Mojo::File->new("$FindBin::RealBin/../templates/$src")->slurp
+                );
             });
 
-            $msg->Close();
+            my $email = Email::MIME->create(
+                header_str => [
+                    From           => $settings->{mail_from},
+                    To             => $send_to,
+                    Subject        => $subject,
+                    'Content-Type' => 'multipart/related'
+                ],
+                parts => [
+                    Email::MIME->create (
+                        attributes => {
+                            content_type => 'multipart/alternative'
+                        },
+                        parts => [
+                            $txt_body,
+                            $html_body
+                        ]
+                    ),
+                    @attachments
+                ]
+            );
+
+            eval {
+                sendmail (
+                    $email,
+                    {
+                        from => $settings->{mail_from},
+                        transport => Email::Sender::Transport::SMTP->new({
+                            host => $settings->{mail_server}
+                        })
+                    }
+                );
+                $debug->($email->as_string);
+            };
+            $@ && do {
+                warn "sending failed $@";
+            }
 
         }
         else {
@@ -343,6 +382,8 @@ sub _read_settings{
                                 Mojo::DOM->new(Mojo::File->new($f)->slurp)
                                     ->find('img')->each(
                                         sub {
+                                            # only check inlined images
+                                            return if $_->{src} =~ /^http/;
                                             my $src = "$FindBin::RealBin/../templates/".$_->{src};
                                             push @errors, "referenced img $src not found ($f)"
                                                 unless -f "$src"
