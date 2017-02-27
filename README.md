@@ -67,9 +67,19 @@ Sends mail to all accounts that contain "matthias" somewhere in their name.
 
 Run
 ---
+Send mail to all users with new mail in the selected folder.
+
     bin/zmMailSummary provide
 
-Send mail to all users with new mail in the selected folder.
+show command line options
+
+    bin/zm_mail_summary help provide
+
+    options:
+        -n | --noaction don't send mails.
+        -v | --verbose  be very noisy
+        --account-names a regex; send only to names matching
+        -f | --force    send mails even if already sent today
 
 config options
 --------------

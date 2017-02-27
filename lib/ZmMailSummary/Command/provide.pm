@@ -16,6 +16,7 @@ use Time::Local;
 use Email::MIME;
 use Email::Sender::Simple qw(sendmail);
 use Email::Sender::Transport::SMTP qw();
+use DBI;
 binmode (STDOUT, ':utf8');
 binmode (STDERR, ':utf8');
 
@@ -72,6 +73,13 @@ sub run {
     my $settings = _read_settings();
     my @excludes = _read_exclude_file($settings);
 
+    # open database with timestamps when we last sent to a user
+    my $db_file = "$FindBin::RealBin/../var/send_timestamps";
+    my $dbh = DBI->connect("dbi:SQLite:dbname=$db_file", "", "");
+    $dbh->{AutoCommit} = 1;
+    my $sth = $dbh->prepare('create table if not exists last_sent (mail TEXT, timestamp INTEGER, primary key (mail))');
+    $sth->execute;
+
     # get accounts
     my $zmProv = zmProv->new(
         noaction=>$opt{noaction},
@@ -122,11 +130,11 @@ sub run {
         # read all messages
         # report -x days until yesterday
         my $t = localtime;
-        my $before = timelocal(0,0,0, $t->mday, $t->mon-1, $t->year)*1000; # millisecs for zmmailbox
+        my $end_report = timelocal(0,0,0, $t->mday, $t->mon-1, $t->year)*1000; # millisecs for zmmailbox
         $t -= ONE_DAY for (1..$settings->{report_back_days});
-        my $after = timelocal(0,0,0, $t->mday, $t->mon-1, $t->year)*1000-1;
+        my $start_report = timelocal(0,0,0, $t->mday, $t->mon-1, $t->year)*1000-1;
         # fetch the first messages
-        my @lines = split /\n/, $box->cmd("search --types message 'in:/$settings->{folder} after:$after before:$before'");
+        my @lines = split /\n/, $box->cmd("search --types message 'in:/$settings->{folder} after:$start_report before:$end_report'");
         my @msgs; # array of hashes [{from => foo@bar.com, date => 01/25/17, msg => whatever, I mailed it}]
         while (@lines){
             my $line = shift @lines;
@@ -200,12 +208,31 @@ sub run {
                 next;
             };
 
-            # TODO get timestamp "last send time" from LDAP:
-            # matthias_test_1@zimbra.oetiker.ch +zimbraZimletUserProperties "ch_oep_test:irgendwas beliebiges"
-            # zmprov ga matthias_test_1@zimbra.oetiker.ch |grep ch_oep
-            # zimbra@wartburg:~$ zmprov ga  |grep ch_oep
-            # zimbraZimletUserProperties: ch_oep_test:favouriteFood:chocolate
-            # zimbraZimletUserProperties: ch_oep_test:irgendwas beliebiges
+            # if the largest value found is older than midnight,
+            # send mail, and, on success,
+            # delete all, add current time
+            $sth = $dbh->prepare("select count(mail) from last_sent where mail = '$account'");
+            $sth->execute;
+            my $sent_earlier = $sth->fetch->[0];
+
+            if ($sent_earlier){
+                $sth = $dbh->prepare("select timestamp from last_sent where mail = '$account'");
+                $sth->execute;
+                my $timestamp = $sth->fetch->[0];
+                $timestamp > $end_report && do {
+                    print "$timestamp > $end_report ";
+                    if ($opt{force}){
+                        say "force overrule skip";
+                    }
+                    else {
+                        say "already sent today: skip";
+                        next;
+                    }
+                }
+            }
+            else {
+                $debug->("no timestamp of former send action found");
+            }
 
             # send mail
 
@@ -250,6 +277,8 @@ sub run {
                 return if $src =~ /^http/; # only inline local images
                 $src =~ /\.(\w+)$/;
 
+                # could not get Email::MIME to produce a content-id that is picked up
+                # by my mail clients. Workarounding this in "disposition"
                 push @attachments, Email::MIME->create(
                     attributes => {
                         content_type => "image/$1",
@@ -291,6 +320,17 @@ sub run {
                         })
                     }
                 );
+
+                my $time = time * 1000;
+                my $stmt;
+                $sent_earlier
+                    ? ($stmt = "update last_sent set timestamp=$time where mail = '$account'")
+                    : ($stmt = "insert into last_sent values ('$account', $time)");
+
+                $debug->("sent_earlier: $sent_earlier, stmt: $stmt");
+                $sth = $dbh->prepare($stmt);
+                $sth->execute;
+
                 $debug->($email->as_string);
             };
             $@ && do {

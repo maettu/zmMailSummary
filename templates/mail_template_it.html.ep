@@ -2,7 +2,8 @@ Subject: nouvo Spam
 <html>
     <head></head>
     <body>
-        <img src="logo.png" alt="our logo" border="0">
+        <img src="logo_gif.gif" alt="our logo" border="0"><br>
+        <img src="http://www.oetiker.ch/themes/op13/images/logo.png">
         <h1>pregato di tradurre in italiano corretto, grazie</h1>
         <h2>nuovo spam per <%= $user %> </h2>
         <p>
@@ -10,8 +11,11 @@ Subject: nouvo Spam
         </p>
         <table border="1">
             <tr><td>data</td><td>da</td><td>ogetto</td><td>azione</td></tr>
+            % my $c = 0;
             % for my $msg (@msgs){
-                <tr>
+                % my $bgcolor;
+                % $bgcolor = $c++ % 2 ? 'yellow' : 'grey';
+                <tr bgcolor = "<%= $bgcolor %>">
                     <td><%= $msg->{date} %></td>
                     <td><%= $msg->{from} %></td>
                     <td><%= $msg->{subject} %></td>
