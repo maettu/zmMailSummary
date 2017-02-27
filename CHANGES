@@ -1,9 +1,19 @@
+2.0.2 
+- support externally linked images 
+    (by not rewriting img src and trying to inline..)
+- use Email::MIME and Email::Sender:Simple instead of Mail::Sender
+- only send users mails once a day
+- add --force option to overrule "sending only once a day"
+
+2.0.1 2017-02-23  Matthias Bloch <matthias.bloch@oetiker.ch>
+- MIME-Mails
+- bugfixes
+
 2.0.0 2017-02-22  Matthias Bloch <matthias.bloch@oetiker.ch>
 - report x days back until yesterday (instead of x hours back from now)
 - honor unsubscribe
 - feature to mangle to: addresses globaly
 - bugfixes
-- MIME-Mails
 
 1.8.0 2017-02-21  Matthias Bloch <matthias.bloch@oetiker.ch>
 - multi language templates

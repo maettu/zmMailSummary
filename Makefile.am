@@ -2,7 +2,7 @@
 
 AUTOMAKE_OPTIONS =  foreign
 
-SUBDIRS = thirdparty lib etc templates
+SUBDIRS = thirdparty lib etc templates var
 
 BIN = bin/$(SCRIPT_NAME)
 

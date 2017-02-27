@@ -78,6 +78,7 @@ AC_CONFIG_FILES([
     lib/Makefile
     templates/Makefile
     thirdparty/Makefile
+    var/Makefile
 ])
 
 AC_SUBST(VERSION)
