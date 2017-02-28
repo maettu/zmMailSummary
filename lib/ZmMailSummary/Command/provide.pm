@@ -71,7 +71,15 @@ sub run {
 
     # read settings
     my $settings = _read_settings();
-    my @excludes = _read_exclude_file($settings);
+    my @excludes = _read_file_with_mail_addresses($settings->{exclude_file});
+    my @only_send_to = ();
+    $settings->{only_send_to} and do {
+        @only_send_to = _read_file_with_mail_addresses($settings->{only_send_to});
+        $debug->("only sending to:");
+        $debug->("----------------");
+        $debug->(join "\n", @only_send_to);
+        $debug->("----------------");
+    };
 
     # open database with timestamps when we last sent to a user
     my $db_file = "$FindBin::RealBin/../var/send_timestamps";
@@ -96,6 +104,10 @@ sub run {
                 $debug->("skip $account, does not match $opt{'account-names'}");
                 next;
             }
+        };
+
+        $settings->{only_send_to} && do {
+            next unless (_in_list($account, @only_send_to));
         };
 
         next if _in_list($account, @excludes);
@@ -381,6 +393,15 @@ sub _read_settings{
                         return "file $value does not exist";
                     }
                 },
+                only_send_to => {
+                    optional => 1,
+                    description => 'If this option is set, only mail addresses in this file get a mail.',
+                    validator => sub {
+                        my $file = shift;
+                        return undef if -f "$FindBin::RealBin/../$file";
+                        return "file $file does not exist";
+                    }
+                },
                 mail_server => {
                     description => 'the mail server you want to send mails through',
                 },
@@ -451,18 +472,18 @@ sub _read_settings{
     return $settings->{GENERAL};
 }
 
-sub _read_exclude_file{
-    my $settings = shift;
-    open my $xh, '<', "$FindBin::RealBin/../$settings->{exclude_file}" or die $!;
-    my @excludes;
+sub _read_file_with_mail_addresses{
+    my $file = shift;
+    open my $xh, '<', "$FindBin::RealBin/../$file" or die $!;
+    my @mails;
     while (<$xh>){
         chomp;
         s/^\s*//;
         s/\s*$//;
         next if /^\s*$/;
-        push @excludes, $_;
+        push @mails, $_;
     }
-    return @excludes;
+    return @mails;
 }
 
 sub _in_list{

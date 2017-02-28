@@ -2,6 +2,7 @@
     "GENERAL" : {
         "folder"              : "Inbox",
         "exclude_file"        : "etc/exclude_list",
+        "only_send_to"        : "etc/only_send_to",
         "report_back_days"    : "1",
         "zimbra_url"          : "https : //zimbra.example-productive.com",
         "default_language"    : "de",
