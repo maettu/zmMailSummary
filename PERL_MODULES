@@ -1,3 +1,6 @@
 Mojo
 Data::Processor@0.4.2
-Mail::Sender
+Email::MIME
+Email::Sender::Simple
+Email::Sender::Transport::SMTP
+DBD::SQLite
