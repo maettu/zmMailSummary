@@ -1,4 +1,7 @@
-2.0.2 
+2.0.3 Matthias Bloch <matthias.bloch@oetiker.ch>
+- support "send only to these mail accounts" list
+
+2.0.2 Matthias Bloch <matthias.bloch@oetiker.ch>
 - support externally linked images 
     (by not rewriting img src and trying to inline..)
 - use Email::MIME and Email::Sender:Simple instead of Mail::Sender
