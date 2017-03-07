@@ -12,8 +12,8 @@ Subject: neuer Spam
             % for my $msg (@msgs){
                 <tr>
                     <td><%= $msg->{date} %></td>
-                    <td><%= $msg->{from} %></td>
-                    <td><%= $msg->{subject} %></td>
+                    <td><%= $msg->{from_personal} // '' %> &lt;<%= $msg->{from} %>&gt;</td>
+                    <td><%= $msg->{subject} || '&lt;kein Betreff&gt;' %></td>
                     <td><a href="<%= $msg->{url} %>">anzeigen</a></td>
                 </tr>
             % }

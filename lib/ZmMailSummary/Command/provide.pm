@@ -146,46 +146,33 @@ sub run {
         $t -= ONE_DAY for (1..$settings->{report_back_days});
         my $start_report = timelocal(0,0,0, $t->mday, $t->mon-1, $t->year)*1000-1;
         # fetch the first messages
-        my @lines = split /\n/, $box->cmd("search --types message 'in:/$settings->{folder} after:$start_report before:$end_report'");
+        my $r = $box->cmd("search -v --types message 'in:/$settings->{folder} after:$start_report before:$end_report'");
+        # delete first line, which is the command
+        $r =~ s/.*?\n//m;
+        $r = decode_json($r);
         my @msgs; # array of hashes [{from => foo@bar.com, date => 01/25/17, msg => whatever, I mailed it}]
-        while (@lines){
-            my $line = shift @lines;
-            $say->($line);
-            $line =~ /more:\s+true/ && do {
-                push @lines, split(/\n/, $box->cmd('search --next'));
-                next;
-            };
-
-            # a line with a message:
-            # no id    type   sender  subject    date / time
-            # 1. 1726  mess   foo@bar whatnot    02/15/17 16:25
-            $line =~ /^\s*\d+\.\s+(\d+)\s+mess\s+(.*)$/ && do {
-                my $id = $1;
-                my $rest = $2;
-
-                # chomp date off the end
-                $rest =~ s{(\d+)/(\d+)/(\d+)\s+(\d+):(\d+)\s*$}{};
-                my $month = $1;
-                my $day   = $2;
-                my $year  = $3;
-                my $hour  = $4;
-                my $min   = $5;
-
-                # byte sender off the start
-                $rest =~ s/^\s*([\w\@]+)\s+//;
-                my $from = $1;
-
-                my $subject = $rest;
-                $subject =~ s/\s*$//;
+        while (1){
+            for my $m (@{$r->{hits}}){
+                my $d = localtime($m->{date}/1000);
+                my $date_string = sprintf ('%02d.%02d.%04d %02d:%02d', $d->mday, $d->mon, $d->year, $d->hour, $d->min);
 
                 push @msgs, {
-                    url     => "$settings->{zimbra_url}/?id=$id",
-                    from    => decode('UTF-8', $from),
-                    subject => decode('UTF-8', $subject),
-                    date    => "$day.$month.$year $hour:$min"
+                    url     => "$settings->{zimbra_url}/?id=$m->{id}",
+                    from    => $m->{sender}{address},
+                    from_full => $m->{sender}{fullAddressQuoted},
+                    from_display => $m->{sender}{display},
+                    from_personal => $m->{sender}{personal},
+                    subject => $m->{subject},
+                    date    => $date_string,
                 };
-            };
+            }
 
+
+            my $more = $r->{more};
+            last unless $more == 1;
+            $r = $box->cmd('search -v --next');
+            $r =~ s/.*?\n//m;
+            $r = decode_json $r;
         }
 
         if (scalar(@msgs) > 0){
