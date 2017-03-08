@@ -1,3 +1,6 @@
+2.0.4 Matthias Bloch <matthias.bloch@oetiker.ch>
+- bugfixes, support more email fields, query full subjects
+
 2.0.3 Matthias Bloch <matthias.bloch@oetiker.ch>
 - support "send only to these mail accounts" list
 
