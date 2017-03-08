@@ -13,7 +13,8 @@ Subject: neuer Spam
                 <tr>
                     <td><%= $msg->{date} %></td>
                     <td><%= $msg->{from_personal} // '' %> &lt;<%= $msg->{from} %>&gt;</td>
-                    <td><%= $msg->{subject} || '&lt;kein Betreff&gt;' %></td>
+                    % my $subj = (length($msg->{subject}) > 20) ? substr($msg->{subject}, 0, 20).'...' : $msg->{subject};
+                    <td><%= $subj || '&lt;kein Betreff&gt;' %></td>
                     <td><a href="<%= $msg->{url} %>">anzeigen</a></td>
                 </tr>
             % }
