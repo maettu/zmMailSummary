@@ -349,11 +349,14 @@ sub _get_user_locale{
     my $settings = shift;
     my @user_locale_lines = grep /zimbraPrefLocale/i, split /\n/, $zmProv->cmd("ga $account");
     $debug->("-- $account --");
-    $user_locale_lines[0] =~ /: (.*)$/;
-    # default to default_language if not set or not in our list of available languages
-    my $user_locale = $1 // $settings->{default_language};
-    $user_locale = $settings->{default_language}
-        unless _in_list($user_locale, @{$settings->{available_languages}});
+    my $user_locale = $settings->{default_language};
+    $user_locale_lines[0] && do {
+        $user_locale_lines[0] =~ /: (.*)$/;
+        # default to default_language if not set or not in our list of available languages
+        $user_locale = $1 // $settings->{default_language};
+        $user_locale = $settings->{default_language}
+            unless _in_list($user_locale, @{$settings->{available_languages}});
+    };
     $debug->("locale: $user_locale");
     return $user_locale;
 }
