@@ -354,7 +354,7 @@ sub _get_user_locale{
     my $user_locale = $1 // $settings->{default_language};
     $user_locale = $settings->{default_language}
         unless _in_list($user_locale, @{$settings->{available_languages}});
-    $debug->("locale: $1");
+    $debug->("locale: $$user_locale");
     return $user_locale;
 }
 
