@@ -74,7 +74,7 @@ sub run {
         or exit(1);
     if ($opt{noaction}) {
         $opt{verbose} = 1 ;
-        warn timestamp()." *** NO ACTION MODE ***\n";
+        $say->(timestamp()." *** NO ACTION MODE ***");
     }
 
     croak "$0 only works when running as user 'zimbra'"
@@ -167,11 +167,19 @@ sub run {
         $t -= ONE_DAY for (1..$settings->{report_back_days});
         my $start_report = timelocal(0,0,0, $t->mday, $t->mon-1, $t->year)*1000-1;
         # fetch the first messages
-        my $r = $box->cmd("search -v --types message 'in:/$settings->{folder} after:$start_report before:$end_report'");
-        # delete first line, which is the command
-        $r =~ s/.*?\n//m;
-        $r = decode_json($r);
         my @msgs; # array of hashes [{from => foo@bar.com, date => 01/25/17, msg => whatever, I mailed it}]
+
+        my $r;
+        eval {
+            $r = $box->cmd("search -v --types message 'in:/$settings->{folder} after:$start_report before:$end_report'");
+            # delete first line, which is the command
+            $r =~ s/.*?\n//m;
+            $r = decode_json($r);
+        };
+        if ($@){
+            $say->("skip $account, error reading mails: $@");
+            next;
+        }
         while (1){
             for my $m (@{$r->{hits}}){
                 my $d = localtime($m->{date}/1000);
@@ -188,12 +196,17 @@ sub run {
                 };
             }
 
-
             my $more = $r->{more};
             last unless $more == 1;
-            $r = $box->cmd('search -v --next');
-            $r =~ s/.*?\n//m;
-            $r = decode_json $r;
+            eval {
+                $r = $box->cmd('search -v --next');
+                $r =~ s/.*?\n//m;
+                $r = decode_json $r;
+            };
+            if ($@) {
+                $say->("fetching more messages failed for $account: $@");
+                last;
+            }
         }
 
         if (scalar(@msgs) > 0){
@@ -354,7 +367,7 @@ sub run {
                 $debug->($email->as_string);
             };
             $@ && do {
-                warn "sending failed $@";
+                $say->("sending failed $@");
             }
 
         }
@@ -554,21 +567,21 @@ sub _printRead {
             last;
         };
     }
-    warn "ANSWER: '$buffer'\n" if $self->{debug};
+    print "ANSWER: '$buffer'\n" if $self->{debug};
     return $buffer;
 }
 
 sub cmd {
     my $self = shift;
     my $cmd = shift;
-    warn "  - $cmd\n" if $self->{verbose} and $cmd;
+    print "  - $cmd\n" if $self->{verbose} and $cmd;
     $self->_printRead($cmd);
 }
 
 sub act {
     my $self = shift;
     my $cmd = shift;
-    warn "  > $cmd\n" if $self->{verbose} and $cmd;
+    print "  > $cmd\n" if $self->{verbose} and $cmd;
     $self->_printRead($cmd) unless $self->{noaction};
 }
 
