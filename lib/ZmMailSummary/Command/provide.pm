@@ -46,15 +46,26 @@ has description => 'send a summary mail to each user with mails in the given fol
 has usage => sub { shift->extract_usage };
 
 my %opt;
-my $say = sub{
+
+my $say = sub {
     my $msg = shift;
-    print "***verbose: $msg\n" if $opt{verbose} or $opt{debug};
+    say timestamp()." $msg";
+};
+my $verbose = sub{
+    my $msg = shift;
+    $say->(" ***verbose: $msg") if $opt{verbose} or $opt{debug};
 };
 
 my $debug = sub{
     my $msg = shift;
-    print "***debug: $msg\n" if $opt{debug};
+    $say->(" ***debug: $msg") if $opt{debug};
 };
+
+sub timestamp{
+    my $d = localtime;
+    return sprintf ('%02d.%02d.%04d %02d:%02d:%02d', $d->mday, $d->mon, $d->year, $d->hour, $d->min, $d->sec)
+}
+
 
 sub run {
     my $self = shift;
@@ -63,7 +74,7 @@ sub run {
         or exit(1);
     if ($opt{noaction}) {
         $opt{verbose} = 1 ;
-        warn "*** NO ACTION MODE ***\n";
+        warn timestamp()." *** NO ACTION MODE ***\n";
     }
 
     croak "$0 only works when running as user 'zimbra'"
@@ -94,28 +105,38 @@ sub run {
         verbose=>$opt{verbose},
         debug=>$opt{debug}
     );
-    my @accounts = grep /\@/, split /\n/, $zmProv->cmd('gaa') ;
+    my @accounts = grep /\@/, split /\n/, $zmProv->cmd('gaa');
+    $say->(scalar(@accounts). ' accounts');
 
     my $box = zmMailBox->new(verbose=>$opt{verbose},noaction=>$opt{noaction},debug=>$opt{debug});
 
+    my $c = 0;
     for my $account (@accounts){
+        $c++;
+        $say->("$c/".scalar(@accounts)." $account");
         $opt{'account-names'} && do {
             $account =~ /$opt{'account-names'}/ || do {
-                $debug->("skip $account, does not match $opt{'account-names'}");
+                $say->("skip $account, does not match $opt{'account-names'}");
                 next;
             }
         };
 
         $settings->{only_send_to} && do {
-            next unless (_in_list($account, @only_send_to));
+            unless (_in_list($account, @only_send_to)){
+                $say->("skip $account, not in only_send_to list");
+                next;
+            }
         };
 
-        next if _in_list($account, @excludes);
+        if (_in_list($account, @excludes)){
+            $say->("skip account, found in exlude list");
+            next;
+        }
 
         # the MailboxManager tool sets amavisBlacklistSender: $settings->{unsubscribe}
         my @blacklist = grep /amavisBlacklistSender:.*$settings->{unsubscribe}/, split /\n/, $zmProv->cmd("ga $account");
         @blacklist && do {
-            say "skip $account (has option set in Mailmanager)";
+            $say->("skip $account, has option set in Mailmanager");
             next;
         };
 
@@ -135,7 +156,7 @@ sub run {
             $folder_found = 1;
         }
         unless ($folder_found){
-            print "*** $account: no folder $settings->{folder}\n";
+            $say->("*** $account: no folder $settings->{folder}");
             next;
         }
 
@@ -200,10 +221,10 @@ sub run {
                 '% my $mails_number = $r->{mails_number};'."\n".
                 '% my @msgs = @{$r->{msgs}};'."\n";
 
-            say "send account: '$account' to: '$send_to'";
+            $say->("send account: '$account' to: '$send_to'");
 
             $opt{noaction} && do {
-                say "noaction: skip sending";
+                $say->("noaction: skip sending");
                 next;
             };
 
@@ -219,12 +240,12 @@ sub run {
                 $sth->execute;
                 my $timestamp = $sth->fetch->[0];
                 $timestamp > $end_report && do {
-                    print "$timestamp > $end_report ";
+                    $say->("$timestamp > $end_report ");
                     if ($opt{force}){
-                        say "force overrule skip";
+                        $say->("force overrule skip");
                     }
                     else {
-                        say "already sent today: skip";
+                        $say->("already sent today: skip");
                         next;
                     }
                 }
@@ -338,7 +359,7 @@ sub run {
 
         }
         else {
-            say "skip $account: no mails in $settings->{folder} in the last $settings->{report_back_days} days";
+            $say->("skip $account: no mails in $settings->{folder} in the last $settings->{report_back_days} days");
         }
     }
 }
