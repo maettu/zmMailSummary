@@ -94,11 +94,11 @@ sub run {
 
     # open database with timestamps when we last sent to a user
     my $db_file = "$FindBin::RealBin/../var/send_timestamps";
-    die "SQLite DB file $db_file is not writeable" unless -w $db_file and -w "$FindBin::RealBin/../var";
     my $dbh = DBI->connect("dbi:SQLite:dbname=$db_file", "", "");
     $dbh->{AutoCommit} = 1;
     my $sth = $dbh->prepare('create table if not exists last_sent (mail TEXT, timestamp INTEGER, primary key (mail))');
     $sth->execute;
+    die "SQLite DB file $db_file is not writeable" unless -w $db_file and -w "$FindBin::RealBin/../var";
 
     # get accounts
     my $zmProv = zmProv->new(
