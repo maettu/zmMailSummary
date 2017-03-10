@@ -94,6 +94,7 @@ sub run {
 
     # open database with timestamps when we last sent to a user
     my $db_file = "$FindBin::RealBin/../var/send_timestamps";
+    die "SQLite DB file $db_file is not writeable" unless -w $db_file and -w "$FindBin::RealBin/../var";
     my $dbh = DBI->connect("dbi:SQLite:dbname=$db_file", "", "");
     $dbh->{AutoCommit} = 1;
     my $sth = $dbh->prepare('create table if not exists last_sent (mail TEXT, timestamp INTEGER, primary key (mail))');
@@ -156,7 +157,7 @@ sub run {
             $folder_found = 1;
         }
         unless ($folder_found){
-            $say->("*** $account: no folder $settings->{folder}");
+            $say->("skip $account: folder $settings->{folder} not found");
             next;
         }
 
@@ -270,9 +271,28 @@ sub run {
             # send mail
 
             # extract subject: from html template (1st line)
-            my $html = Mojo::Template->new->render($template.decode('UTF-8', $path{html}->slurp), $r);
-            $html =~ s/^Subject: (.*)//;
+            my $html = Mojo::Template->new
+                ->render($template.decode('UTF-8', $path{html}->slurp), $r);
+
+            $html =~ s/^Subject:\s*(.*)//;
             my $subject = $1;
+
+            if (ref $html eq 'Mojo::Exception'){
+                $say->("skip $account: cannot render template $path{html}:\n$html");
+                next;
+            }
+
+            unless ($subject){
+                $say->("skip $account: cannot extract subject from $path{html}. Make sure the first line is 'Subject: (your subject, here)'");
+                next;
+            }
+
+            my $body = Mojo::Template->new->render(
+                    $template.decode('UTF-8', $path{txt}->slurp), $r);
+            if (ref $body eq 'Mojo::Exception'){
+                $say->("skip $account: cannot render template $path{txt}:\n$body");
+                next;
+            }
 
             my $txt_body = Email::MIME->create(
                 attrbutes => {
@@ -280,8 +300,7 @@ sub run {
                     charset      => 'UTF-8',
                     encoding     => 'Quoted-printable',
                 },
-                body => encode('UTF-8', Mojo::Template->new->render(
-                    $template.decode('UTF-8', $path{txt}->slurp), $r))
+                body => encode('UTF-8', $body),
             );
 
             # need to render template first, then replace img tags.
